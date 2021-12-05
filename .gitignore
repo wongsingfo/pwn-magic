@@ -1,0 +1,8 @@
+# GDB
+.gdb_history
+
+# jupyter
+.ipynb_checkpoints
+
+# Vim
+*.swp

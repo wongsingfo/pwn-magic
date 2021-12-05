@@ -1,0 +1,21 @@
+version: '2'
+
+# Docs: https://docs.docker.com/compose/compose-file/compose-file-v2/
+
+services:
+        ctf:
+                build:
+                        context: ./docker
+                volumes:
+                        - .:/ctf/work
+                ports:
+                        - 127.0.0.1:8888:8888   # jupyter-notebook
+                        - 127.0.0.1:23946:23946 # GDB
+                container_name: ctf
+                hostname: ctf
+                cap_add:
+                        - SYS_PTRACE
+                security_opt:
+                        - seccomp:unconfined
+                command: jupyter-lab --no-browser --allow-root --ip='*'
+
