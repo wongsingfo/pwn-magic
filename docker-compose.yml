@@ -9,7 +9,9 @@ services:
                 volumes:
                         - .:/ctf/work
                 ports:
-                        - 127.0.0.1:8888:8888   # jupyter-notebook
+                        # For secuiry concern, we only allow connection from localhost.
+                        # It is possible to use ssh to setup a secure port forwarding.
+                        - 127.0.0.1:8888:8888   # jupyter
                         - 127.0.0.1:23946:23946 # GDB
                 container_name: ctf
                 hostname: ctf
@@ -17,5 +19,4 @@ services:
                         - SYS_PTRACE
                 security_opt:
                         - seccomp:unconfined
-                command: jupyter-lab --no-browser --allow-root --ip='*'
 
