@@ -6,3 +6,9 @@
 
 # Vim
 *.swp
+
+# Flags and temperary files
+flag
+flag1
+flag2
+*.tmp
