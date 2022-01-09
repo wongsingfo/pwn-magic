@@ -9,6 +9,7 @@
 
 # Flags and temperary files
 flag
+flag.txt
 flag1
 flag2
 *.tmp
