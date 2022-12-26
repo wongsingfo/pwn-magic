@@ -6,6 +6,13 @@ Many heap attacks exploit the `ptmalloc` implementation in glibc. The attacks ar
 
 We can check the source code at [elixir.bootlin.com](https://elixir.bootlin.com/glibc/glibc-2.26/source/malloc/malloc.c). We use glibc-2.26 for demonstration. Use `objdump -T ./libc.so.6 | grep malloc` to find the version information.
 
+## References
+
+- https://sourceware.org/glibc/wiki/MallocInternals
+- https://github.com/shellphish/how2heap
+- https://sploitfun.wordpress.com/2015/02/10/understanding-glibc-malloc/
+- https://sploitfun.wordpress.com/2015/06/26/linux-x86-exploit-development-tutorial-series/
+
 ## Memory Layout: malloc_chunk
 
 ```c
@@ -63,7 +70,9 @@ nextchunk-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 The P (PREV_INUSE) bit: If that bit is *clear*, then the word before the current 
 chunk size contains the previous chunk size.
 
-The A (NON_MAIN_ARENA) bit: cleared for chunks on the initial, main_arena.
+The A (NON_MAIN_ARENA) bit: cleared for chunks on the initial, main_arena. 
+Allocated Arena - the main arena uses the application's heap. Other arenas use 
+mmap'd heaps.
 
 The M (IS_MAPPED) bit: set for chunks allocated by mmap. If the M bit is set, 
 the other bits are ignored (because mmapped chunks are neither in an arena, 
@@ -80,7 +89,7 @@ It is noteworthy that:
 
 ## Arena
 
-The contiguous region of heap memory is called arena. The arena created by main thread is called `main_arena` and those created by threads are called `thead_arena`.
+The contiguous region of heap memory is called arena. The arena created by main thread is called `main_arena` and those created by threads are called `thead_arena`. Each arena structure has a mutex in it which is used to control access to that arena. 
 
 The number of arenas is limited by the number of CPU cores:
 
@@ -111,6 +120,23 @@ arena_get2 (size_t size, mstate avoid_arena)
 ```
 
 A single thread arena can have multiple heaps (uncontiguous memory regions), while main arena only has one heap. When main arena runs out of space, sbrk’d heap segment is extended. Each heap (except the one in main arena) has its own header `heap_info`. Each arena also has its header `malloc_state`. Arena header contains information about bins, top chunk, last remainder chunk, etc. The main arena header is a global variable `main_area` in data segment but the thread arena header is a part of first heap segment in the thread arena.
+
+Each thread has a thread-local variable that remembers which arena it last used. If that arena is in use when a thread needs to use it the thread will block to wait for the arena to become free. If the thread has never used an arena before then it may try to reuse an unused one, create a new one, or pick the next one on the global list.
+
+## tcache
+
+The Thread Local Cache (tcache) is a performance optimization in glibc. Each thread has a per-thread cache (called the tcache) containing a small collection of chunks which can be accessed without needing to lock an arena. These chunks are stored as an array of singly-linked lists, like fastbins, but with links pointing to the payload (user area) not the chunk header. Each bin contains one size chunk, so the array is indexed (indirectly) by chunk size. Unlike fastbins, the tcache is limited in how many chunks are allowed in each bin (tcache_count). If the tcache bin is empty for a given requested size, the next larger sized chunk is not used (could cause internal fragmentation), instead the fallback is to use the normal malloc routines i.e. locking the thread's arena and working from there.
+
+```c
+/* We overlay this structure on the user-data portion of a chunk when
+   the chunk is stored in the per-thread cache.  */
+typedef struct tcache_entry
+{
+  struct tcache_entry *next;
+  /* This field exists to detect double frees.  */
+  uintptr_t key;    // A random variable that is set when tcache is initilized. 
+} tcache_entry;
+```
 
 ## mmap
 
@@ -204,9 +230,3 @@ Larger bins are approximately logarithmically spaced:
      1 bin  of size what's left
 **/
 ```
-
-# References
-
-- https://sploitfun.wordpress.com/2015/02/10/understanding-glibc-malloc/
-- https://sploitfun.wordpress.com/2015/06/26/linux-x86-exploit-development-tutorial-series/
-
